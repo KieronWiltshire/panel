@@ -11,8 +11,10 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\View\Factory as ViewFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Laravel\Socialite\Facades\Socialite;
 use Pterodactyl\Contracts\Repository\UserRepositoryInterface;
 use Pterodactyl\Exceptions\Repository\RecordNotFoundException;
+use Pterodactyl\Services\Users\UserCreationService;
 
 class LoginController extends AbstractLoginController
 {
@@ -32,6 +34,11 @@ class LoginController extends AbstractLoginController
     private $repository;
 
     /**
+     * @var \Pterodactyl\Services\Users\UserCreationService
+     */
+    private $creationService;
+
+    /**
      * LoginController constructor.
      *
      * @param \Illuminate\Auth\AuthManager $auth
@@ -39,19 +46,22 @@ class LoginController extends AbstractLoginController
      * @param \Illuminate\Contracts\Cache\Repository $cache
      * @param \Pterodactyl\Contracts\Repository\UserRepositoryInterface $repository
      * @param \Illuminate\Contracts\View\Factory $view
+     * @param \Pterodactyl\Services\Users\UserCreationService $creationService
      */
     public function __construct(
         AuthManager $auth,
         Repository $config,
         CacheRepository $cache,
         UserRepositoryInterface $repository,
-        ViewFactory $view
+        ViewFactory $view,
+        UserCreationService $creationService
     ) {
         parent::__construct($auth, $config);
 
         $this->view = $view;
         $this->cache = $cache;
         $this->repository = $repository;
+        $this->creationService = $creationService;
     }
 
     /**
@@ -114,5 +124,53 @@ class LoginController extends AbstractLoginController
         $this->auth->guard()->login($user, true);
 
         return $this->sendLoginResponse($user, $request);
+    }
+
+    /**
+     * Redirect the user to the socialite driver.
+     *
+     * @return \Symfony\Component\HttpFoundation\RedirectResponse
+     */
+    public function redirectToProvider()
+    {
+        return Socialite::driver('oauth2')->redirect();
+    }
+
+    /**
+     * Obtain the user information from Socialite.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     *
+     * @throws \Pterodactyl\Exceptions\DisplayException
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function handleProviderCallback(Request $request): JsonResponse
+    {
+        $user = Socialite::driver('oauth2')->user();
+
+        if ($user) {
+            try {
+                $user = $this->repository->findFirstWhere([['external_id', '=', $user->getId()]]);
+            } catch (RecordNotFoundException $exception) {
+                $lastName = (strpos($user->getName(), ' ') === false) ? '' : preg_replace('#.*\s([\w-]*)$#', '$1', $user->getName());
+                $firstName = trim(preg_replace('#'.$lastName.'#', '', $user->getName()));
+
+                $user = $this->creationService->handle([
+                    'external_id' => $user->getId(),
+                    'email' => $user->getEmail(),
+                    'username' => $user->getNickname(),
+                    'name_first' => $firstName,
+                    'name_last' => $lastName,
+                    'root_admin' => false,
+                ], false);
+            }
+
+            $this->auth->guard()->login($user, true);
+
+            return $this->sendLoginResponse($user, $request);
+        } else {
+            return $this->sendFailedLoginResponse($request);
+        }
     }
 }

@@ -31,4 +31,12 @@ return [
     'sparkpost' => [
         'secret' => env('SPARKPOST_SECRET'),
     ],
+
+    'oauth2' => [
+        'client_id' => env('OAUTH_ID'),
+        'client_secret' => env('OAUTH_SECRET'),
+        'auth_url' => env('OAUTH_URL'),
+        'token_url' => env('OAUTH_TOKEN_URL'),
+        'redirect' => env('OAUTH_REDIRECT_URI')
+    ],
 ];
