@@ -25,6 +25,7 @@
         "laracasts/utilities": "^3.0",
         "laravel/framework": "^6.0.0",
         "laravel/helpers": "^1.1",
+        "laravel/socialite": "^4.3",
         "laravel/tinker": "^1.0",
         "lcobucci/jwt": "^3.3",
         "matriphe/iso-639": "^1.2",

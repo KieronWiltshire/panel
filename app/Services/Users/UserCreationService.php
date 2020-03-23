@@ -55,12 +55,13 @@ class UserCreationService
      * Create a new user on the system.
      *
      * @param array $data
+     * @param bool $notify
      * @return \Pterodactyl\Models\User
      *
      * @throws \Exception
      * @throws \Pterodactyl\Exceptions\Model\DataValidationException
      */
-    public function handle(array $data)
+    public function handle(array $data, bool $notify = true)
     {
         if (array_key_exists('password', $data) && ! empty($data['password'])) {
             $data['password'] = $this->hasher->make($data['password']);
@@ -82,7 +83,10 @@ class UserCreationService
         }
 
         $this->connection->commit();
-        $user->notify(new AccountCreated($user, $token ?? null));
+
+        if ($notify) {
+            $user->notify(new AccountCreated($user, $token ?? null));
+        }
 
         return $user;
     }
